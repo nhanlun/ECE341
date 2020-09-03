@@ -1,7 +1,5 @@
-hour_port equ p0
-minute_port equ p2
-second_port equ p3
-
+output_port equ p0
+	
 return_port equ p1.0
 
 hour equ 40H
@@ -20,6 +18,8 @@ button_down equ p1.7
 
 delay equ 20
 
+org 1000H
+	table: db 3FH, 06H, 5BH, 4FH, 66H, 6DH, 7DH, 07H, 7FH, 6FH
 org 0
 	jmp main
 org 0BH
@@ -27,6 +27,7 @@ org 0BH
 org 30H
 	
 main:
+	mov p2, #0FFH
 	mov ie, #82H
 	mov tmod, #1
 	mov th0, #high(-50000)
@@ -66,6 +67,7 @@ interrupt:
 	mov th0, #high(-50000)
 	mov tl0, #low(-50000)
 	setb tr0
+	cjne r6, #0, exit_interrupt
 	djnz r7, exit_interrupt
 	mov r7, #delay
 	clr return_port
@@ -180,19 +182,73 @@ output:
 output_hour:
 	mov a, hour
 	call calculate
-	mov hour_port, a
+	
+	mov b, a
+	anl a, #0F0H
+	swap a
+	mov dptr, #table
+	movc a, @a + dptr
+	mov output_port, a
+	clr p2.0
+	call small_delay
+	setb p2.0
+	
+	mov a, b
+	anl a, #0FH
+	mov dptr, #table
+	movc a, @a + dptr
+	mov output_port, a
+	clr p2.1
+	call small_delay
+	setb p2.1
 	ret
 
 output_minute:
 	mov a, minute
 	call calculate
-	mov minute_port, a
+	
+	mov b, a
+	anl a, #0F0H
+	swap a
+	mov dptr, #table
+	movc a, @a + dptr
+	mov output_port, a
+	clr p2.2
+	call small_delay
+	setb p2.2
+	
+	mov a, b
+	anl a, #0FH
+	mov dptr, #table
+	movc a, @a + dptr
+	mov output_port, a
+	clr p2.3
+	call small_delay
+	setb p2.3
 	ret
 
 output_second:
 	mov a, second
 	call calculate
-	mov second_port, a
+	
+	mov b, a
+	anl a, #0F0H
+	swap a
+	mov dptr, #table
+	movc a, @a + dptr
+	mov output_port, a
+	clr p2.4
+	call small_delay
+	setb p2.4
+	
+	mov a, b
+	anl a, #0FH
+	mov dptr, #table
+	movc a, @a + dptr
+	mov output_port, a
+	clr p2.5
+	call small_delay
+	setb p2.5
 	ret
 
 calculate:
