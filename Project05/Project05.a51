@@ -1,8 +1,8 @@
 sensor equ p1.4
-output_sensor equ p2
-output_setting equ p0
+output_port equ p2
 button_up equ p1.6
 button_down equ p1.7
+button_mode equ p1.3
 
 skip_rom_code equ 0CCH
 read_scratch_pad_code equ 0BEH
@@ -12,6 +12,7 @@ convert_code equ 44H
 array_setting equ 50H
 array_sensor equ 40H
 led equ p1.5
+mode equ p1.2
 	
 org 1000H
 	table: db 40H, 3FH, 06H, 5BH, 4FH, 66H, 6DH, 7DH, 07H, 7FH, 6FH
@@ -19,12 +20,16 @@ org 0
 main:
 	mov r6, #25 ; default
 	call config_sensor
+	clr mode
 	
 main_loop:
 	clr led
+	call check_button_mode
+	jnb mode, continue
 	call check_button_up
 	call check_button_down
-
+	
+continue:
 	call convert_sensor
 	call delay_100ms
 	call read_temp
@@ -33,6 +38,10 @@ main_loop:
 	
 	mov r0, #array_sensor
 	call calculate          ; calculate and store into array sensor
+	mov r0, #array_sensor
+	jnb mode, output_array_sensor
+	mov r0, #array_setting
+output_array_sensor:
 	call output
 	
 	jmp main_loop
@@ -58,6 +67,14 @@ set_led:
 	call delay_500us
 done_compare:
 	mov a, b
+	ret
+	
+check_button_mode:
+	setb button_mode
+	jb button_mode, button_mode_not_pressed
+	jnb button_mode, $
+	cpl mode
+button_mode_not_pressed:
 	ret
 
 check_button_up:
@@ -87,68 +104,51 @@ button_down_not_pressed:
 	ret
 
 output:
-	mov a, 40H
+	mov a, @r0
 	mov dptr, #table
 	inc a
 	movc a, @a + dptr
-	mov output_sensor, a
-	mov a, 50H
-	mov dptr, #table
-	inc a
-	movc a, @a + dptr
-	mov output_setting, a
-	mov p3, #0EEH
+	mov output_port, a
+	clr p3.0
 	call delay_500us
-	mov p3, #0FFH
-	call delay_500us
-		
-	mov a, 41H
-	mov dptr, #table
-	inc a
-	movc a, @a + dptr
-	mov output_sensor, a
-	mov a, 51H
-	mov dptr, #table
-	inc a
-	movc a, @a + dptr
-	mov output_setting, a
-	mov p3, #0DDH
-	call delay_500us
-	mov p3, #0FFH
+	setb p3.0
 	call delay_500us
 	
-	mov a, 42H
+	inc r0
+	mov a, @r0
 	mov dptr, #table
 	inc a
 	movc a, @a + dptr
-	orl a, #80H                   ;decimal point
-	mov output_sensor, a
-	mov a, 52H
-	mov dptr, #table
-	inc a
-	movc a, @a + dptr
-	orl a, #80H                   ;decimal point
-	mov output_setting, a
-	mov p3, #0BBH
+	mov output_port, a
+	clr p3.1
 	call delay_500us
-	mov p3, #0FFH
+	setb p3.1
 	call delay_500us
 	
-	mov a, 43H
+	inc r0
+	mov a, @r0
 	mov dptr, #table
 	inc a
 	movc a, @a + dptr
-	mov output_sensor, a
-	mov a, 53H
-	mov dptr, #table
-	inc a
-	movc a, @a + dptr
-	mov output_setting, a
-	mov p3, #077H
+	orl a, #80H               ; decimal point
+	mov output_port, a
+	clr p3.2
 	call delay_500us
-	mov p3, #0FFH
+	setb p3.2
+	call delay_500us
+	
+	inc r0
+	mov a, @r0
+	mov dptr, #table
+	inc a
+	movc a, @a + dptr
+	mov output_port, a
+	clr p3.3
+	call delay_500us
+	setb p3.3
 	call delay_500us
 	ret
+	
 	
 delay_500us:
 	mov r7, #250
