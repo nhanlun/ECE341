@@ -2,8 +2,8 @@ Time1 EQU P2
 Time2 EQU P1
 Selector11 EQU P3.0
 Selector12 EQU P3.1
-Tmpbit EQU P3.2
-Mode EQU P3.3 //1 for running, 0 for changing time
+Tmpbit EQU P3.2 		; for swapping
+Mode EQU P3.3 			//1 for running, 0 for changing time
 ModeButton EQU P3.4
 LightButton EQU P3.5
 DecreaseButton EQU P3.6
@@ -17,9 +17,9 @@ ORG 0
 	LJMP TIMER0_ISP
 	ORG 30H
 MAIN:
-	MOV IE, #82H
-	MOV R7, #20
-	MOV TMOD, #1
+	MOV IE, #82H		; enable interrupt 0
+	MOV R7, #20			; delay 20 times (1 second)
+	MOV TMOD, #1		; mode 1 for counter 0
 	MOV TH0, #HIGH(-50000)
 	MOV TL0, #LOW(-50000)
 	SETB TR0
@@ -46,9 +46,9 @@ MAIN:
 CheckModeButton:
 	setb ModeButton
 	jb ModeButton, exit_mode_button
-	jnb ModeButton, $
-	jb Mode, negate
-	call CheckTime
+	jnb ModeButton, $		; wait until release button
+	jb Mode, negate			; if mode = 1 then set = 0
+	call CheckTime			; check if green + yellow = red
 	jnc call_Err
 	setb Mode
 	clr Selector11
@@ -94,7 +94,7 @@ CheckDecreaseButton:
 	setb DecreaseButton
 	jb DecreaseButton, exit_decrease_button
 	jnb DecreaseButton, $
-	dec R6
+	dec R6			; r6 store the time for setting light
 	call SaveTime
 	call GetTime1
 	call DisplayTime1
@@ -107,7 +107,7 @@ CheckIncreaseButton:
 	setb IncreaseButton
 	jb IncreaseButton, exit_increase_button
 	jnb IncreaseButton, $
-	inc R6
+	inc R6			; r6 store the time for setting light
 	call SaveTime
 	call GetTime1
 	call DisplayTime1
@@ -129,20 +129,20 @@ CheckTime:
 	clr C
 	ret
 SetupTime:
-	MOV R0, #10H
+	MOV R0, #10H		; time for red at 10H
 	MOV A, #08H
 	MOV @R0, A
-	MOV R0, #11H
+	MOV R0, #11H		; time for yellow at 11H
 	MOV A, #03H
 	MOV @R0, A
-	MOV R0, #12H
+	MOV R0, #12H		; time for green at 05H
 	MOV A, #05H
 	MOV @R0, A
 	RET	
 	
 SaveTime:
 	mov A, P3
-	mov R3, #03H
+	mov R3, #03H		; calculate the index of the light that is being set
 	anl A, R3
 	mov R4, A 
 	mov A, R5
@@ -173,14 +173,14 @@ ChangeLight1:
 
 GetTime1:
 	mov A, P3
-	mov R3, #03H
+	mov R3, #03H		; get 2 bit p3.0, p3.1 (selector11, selector12)
 	anl A, R3
 	mov R4, A 
-	mov A, R5
-	add A, R4
+	mov A, R5			; r5 store array of light
+	add A, R4			; calculate index (0 for red, 1 for yellow, 2 for green)
 	mov R0, A
 	mov A, @R0
-	mov R6, A
+	mov R6, A			; r6 count for the clock 1
 	ret
 Countdown1:
 	dec R6
@@ -235,14 +235,14 @@ ChangeLight2:
 	ret
 GetTime2:
 	mov A, P0
-	mov R3, #03H
+	mov R3, #03H			; get 2 bit p3.0, p3.1 (selector11, selector12)
 	anl A, R3
 	mov R4, A 
-	mov A, R5
-	add A, R4
+	mov A, R5				; r5 store array of light
+	add A, R4				; calculate index (0 for red, 1 for yellow, 2 for green)
 	mov R0, A
 	mov A, @R0
-	mov R2, A
+	mov R2, A				; r2 count for the clock 2
 	ret
 Countdown2:
 	dec R2

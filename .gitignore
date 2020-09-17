@@ -2,3 +2,7 @@
 *.Miracle
 *.uvopt
 *.pdsbak
+*.workspace
+*.zip
+*/listings/
+*/Objects/
