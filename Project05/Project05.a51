@@ -12,34 +12,34 @@ convert_code equ 44H
 array_setting equ 50H
 array_sensor equ 40H
 led equ p1.5
-mode equ p1.2
+mode equ p1.2			; mode = 1 is setting, 0 is running
 	
 org 1000H
-	table: db 40H, 3FH, 06H, 5BH, 4FH, 66H, 6DH, 7DH, 07H, 7FH, 6FH
+	table: db 40H, 3FH, 06H, 5BH, 4FH, 66H, 6DH, 7DH, 07H, 7FH, 6FH		; array to decode bcd to 7 segment (also included '-' for negative at index 0)
 org 0
 main:
-	mov r6, #25 ; default
-	call config_sensor
+	mov r6, #25 		; default setting for alarm
+	call config_sensor	; choose mode 9 bit for sensor
 	clr mode
 	
 main_loop:
 	clr led
 	call check_button_mode
-	jnb mode, continue
+	jnb mode, continue	; if it is not in setting mode, then we skip the check up and down. 
 	call check_button_up
 	call check_button_down
 	
 continue:
-	call convert_sensor
+	call convert_sensor	; make the sensor measure new temperature
 	call delay_100ms
-	call read_temp
+	call read_temp		; read new temperature from sensor
 	
-	call compare
+	call compare		; compare the temperature from the sensor with the temperature in setting
 	
 	mov r0, #array_sensor
 	call calculate          ; calculate and store into array sensor
 	mov r0, #array_sensor
-	jnb mode, output_array_sensor
+	jnb mode, output_array_sensor	; if it is in setting mode then we output array setting instead of array sensor
 	mov r0, #array_setting
 output_array_sensor:
 	call output
@@ -47,20 +47,22 @@ output_array_sensor:
 	jmp main_loop
 ;---------------------------------------------------------
 
-compare:
+compare:			; if the temperature from sensor and the temperature from setting are the same sign, then we subtract them to compare
+					; otherwise we check the sign of the temparature to see which one is smaller.
+					; compare with different signs cause the subtraction incorrect.
 	mov b, a
 	xrl a, r6
-	anl a, #80H
-	jz same_sign
-	mov a, r6
-	anl a, #80H
+	anl a, #80H		; get the sign of 2 temperature
+	jz same_sign	; check if they are same sign
+	mov a, r6		; if not check which one is smaller. If the temperature from setting (from r6) is smaller, then we raise the alarm.
+	anl a, #80H		
 	jz done_compare
 	jmp set_led
 same_sign:
-	clr c
+	clr c			
 	mov a, r6
 	subb a, b
-	jnc done_compare
+	jnc done_compare ; if temperature from sensor is smaller, then carry is set to 1.
 set_led:
 	setb led
 	call delay_500us
@@ -73,7 +75,7 @@ check_button_mode:
 	setb button_mode
 	jb button_mode, button_mode_not_pressed
 	jnb button_mode, $
-	cpl mode
+	cpl mode			; complement of mode (flip bit)
 button_mode_not_pressed:
 	ret
 
@@ -81,26 +83,26 @@ check_button_up:
 	setb button_up
 	jb button_up, button_up_not_pressed
 	jnb button_up, $
-	inc r6
+	inc r6						; r6 store the temperature of setting
 	cjne r6, #126, button_up_not_pressed
-	mov r6, #125
+	mov r6, #125				; if r6 is more than 125 set it back to 125
 button_up_not_pressed:
 	mov a, r6
 	mov r0, #array_setting
-	call calculate
+	call calculate				; convert to bcd and save at array setting to display
 	ret
 	
 check_button_down:
 	setb button_down
 	jb button_down, button_down_not_pressed
 	jnb button_down, $
-	dec r6
+	dec r6						; r6 store the temperature of setting
 	cjne r6, #-56, button_down_not_pressed
-	mov r6, #-55
+	mov r6, #-55				; if r6 is below -55 set it back to -55
 button_down_not_pressed:
 	mov a, r6
 	mov r0, #array_setting
-	call calculate
+	call calculate				; convert to bcd and save at array setting to display
 	ret
 
 output:
@@ -155,17 +157,17 @@ delay_500us:
 	djnz r7, $
 	ret
 	
-calculate:
-	mov r1, #3
+calculate:		; take input from a and r0, a holds the value that need to convert to bcd, r0 holds the location to store the result
+	mov r1, #3	; the output will be 3 digits, therefore, we convert to bcd for 3 digits
 	mov b, a
 	mov a, r0
-	add a, #3
+	add a, #3	; start from the end of the array
 	mov r0, a
 	mov a, b
-	anl a, #80H
+	anl a, #80H ; check if the value is negative
 	mov r2, #0
 	jz not_negative
-	mov a, b
+	mov a, b	; if the value is negative we take the absolute of it, then calculate as normal
 	cpl a
 	inc a
 	mov r2, #-1
@@ -179,7 +181,7 @@ loop_calculate:
 	mov @r0, b
 	djnz r1, loop_calculate
 
-	cjne r2, #-1, done_calculate
+	cjne r2, #-1, done_calculate ; if the value is negative we move -1 to the first position of the array to tell the output function that we need '-' here
 	mov @r0, #-1
 done_calculate:
 	ret
@@ -196,9 +198,10 @@ read_temp:
 	mov r1, a
 	anl a, #08H
 	jz no_decimal
-	mov 43H, #5
+	mov 43H, #5			; if the information return contain .5 then we move 5 to 43H
 no_decimal:
-	mov a, r1
+	; combine the 2 half of 2 bytes to get the temperatur.
+	mov a, r1			
 	anl a, #0F0H
 	mov b, a
 	call read_byte
